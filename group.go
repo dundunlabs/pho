@@ -6,19 +6,34 @@ import (
 )
 
 type Group struct {
-	router *Router
-	path   string
+	router     *Router
+	path       string
+	middleware Middleware
 }
 
-func (g *Group) Group(path string) *Group {
+func (g *Group) Group(path string, middlewares ...Middleware) *Group {
+	middleware := func(next Handler) Handler {
+		n := next
+		for i := range middlewares {
+			mdw := middlewares[len(middlewares)-i-1]
+			n = mdw(n)
+		}
+
+		if g.middleware != nil {
+			return g.middleware(n)
+		}
+		return n
+	}
+
 	return &Group{
-		router: g.router,
-		path:   g.path + path,
+		router:     g.router,
+		path:       g.path + path,
+		middleware: middleware,
 	}
 }
 
-func (g *Group) WithGroup(path string, fn func(g *Group)) {
-	fn(g.Group(path))
+func (g *Group) WithGroup(path string, fn func(g *Group), middlewares ...Middleware) {
+	fn(g.Group(path, middlewares...))
 }
 
 func (g *Group) findNode(path string) *node {
@@ -26,11 +41,17 @@ func (g *Group) findNode(path string) *node {
 }
 
 func (g *Group) handle(method string, path string, handler Handler) {
+	hdr := handler
+	if g.middleware != nil {
+		hdr = g.middleware(hdr)
+	}
+
 	route := route{
 		method:  method,
 		path:    g.path + path,
-		handler: handler,
+		handler: hdr,
 	}
+
 	g.router.root.addRoute(route)
 }
 

@@ -21,6 +21,11 @@ func (route route) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	})
 
 	switch v := v.(type) {
+	case nil:
+	case error:
+		http.Error(w, v.Error(), http.StatusInternalServerError)
+	case HTTPError:
+		http.Error(w, v.Message, v.statusCode)
 	case string:
 		fmt.Fprintln(w, v)
 	default:

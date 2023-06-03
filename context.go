@@ -34,3 +34,12 @@ func (c *Context) Param(key string) string {
 func (c *Context) ParamInt(key string) (int, error) {
 	return strconv.Atoi(c.Param(key))
 }
+
+func (c *Context) Set(key any, value any) {
+	ctx := context.WithValue(c, key, value)
+	c.Context = ctx
+}
+
+func (c *Context) Get(key any) any {
+	return c.Value(key)
+}

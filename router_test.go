@@ -1,6 +1,7 @@
 package tra
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,7 +15,7 @@ func setupRouter() *Router {
 	r := NewRouter()
 
 	r.GET("/", func(ctx *Context) any {
-		return "hello tra"
+		return nil
 	})
 	r.POST("/a/b/c", func(ctx *Context) any {
 		return ctx.Route()
@@ -36,11 +37,53 @@ func setupRouter() *Router {
 		})
 	})
 
+	r.WithGroup("/admin", func(g *Group) {
+		g.WithGroup("", func(g *Group) {
+			g.GET("/users", func(ctx *Context) any {
+				return []string{"user 1", "user 2"}
+			})
+		}, func(next Handler) Handler {
+			return func(ctx *Context) any {
+				if ctx.Request.Header.Get("Authorization") == "secret" {
+					return ForbiddenError
+				}
+				return next(ctx)
+			}
+		})
+	}, func(next Handler) Handler {
+		return func(ctx *Context) any {
+			if ctx.Request.Header.Get("Authorization") != "secret" {
+				return UnauthorizedError
+			}
+			return next(ctx)
+		}
+	})
+
+	r.WithGroup("", func(g *Group) {
+		g.GET("/count", func(ctx *Context) any {
+			return ctx.Get("count")
+		})
+	}, func(next Handler) Handler {
+		return func(ctx *Context) any {
+			ctx.Set("count", 0)
+			return next(ctx)
+		}
+	}, func(next Handler) Handler {
+		return func(ctx *Context) any {
+			count := ctx.Get("count").(int)
+			ctx.Set("count", count+1)
+			return next(ctx)
+		}
+	})
+
 	r.PUT("/:a/:b/:c/:d/:e", func(ctx *Context) any {
 		return ctx.Params()
 	})
 	r.PATCH("/public/*asset", func(ctx *Context) any {
 		return ctx.Param("asset")
+	})
+	r.POST("/error", func(ctx *Context) any {
+		return errors.New("some error")
 	})
 	return r
 }
@@ -49,8 +92,11 @@ type client struct {
 	http.Handler
 }
 
-func (c client) Fetch(method string, target string, body io.Reader) *http.Response {
+func (c client) Fetch(method string, target string, body io.Reader, opts ...func(req *http.Request)) *http.Response {
 	req := httptest.NewRequest(method, target, body)
+	for _, opt := range opts {
+		opt(req)
+	}
 	w := httptest.NewRecorder()
 	c.ServeHTTP(w, req)
 	return w.Result()
@@ -62,10 +108,7 @@ var c = client{
 
 func TestRootRoute(t *testing.T) {
 	res := c.Fetch(http.MethodGet, "/", nil)
-	body, _ := io.ReadAll(res.Body)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
-	assert.Equal(t, "text/plain; charset=utf-8", res.Header.Get("Content-Type"))
-	assert.Equal(t, "hello tra\n", string(body))
 }
 
 func TestSimpleRoute(t *testing.T) {
@@ -152,4 +195,40 @@ func TestDuplicateRoute(t *testing.T) {
 	assert.Panics(t, func() {
 		r.GET("/:blogId", func(ctx *Context) any { return nil })
 	})
+}
+
+func TestMiddleware(t *testing.T) {
+	t.Run("Simple", func(t *testing.T) {
+		res := c.Fetch(http.MethodGet, "/admin/users", nil)
+		body, _ := io.ReadAll(res.Body)
+		assert.Equal(t, http.StatusUnauthorized, res.StatusCode)
+		assert.Equal(t, "text/plain; charset=utf-8", res.Header.Get("Content-Type"))
+		assert.Equal(t, "401 unauthorized\n", string(body))
+	})
+
+	t.Run("Multiple", func(t *testing.T) {
+		res := c.Fetch(http.MethodGet, "/count", nil)
+		body, _ := io.ReadAll(res.Body)
+		assert.Equal(t, http.StatusOK, res.StatusCode)
+		assert.Equal(t, "application/json; charset=utf-8", res.Header.Get("Content-Type"))
+		assert.Equal(t, "1\n", string(body))
+	})
+
+	t.Run("Nested", func(t *testing.T) {
+		res := c.Fetch(http.MethodGet, "/admin/users", nil, func(req *http.Request) {
+			req.Header.Set("Authorization", "secret")
+		})
+		body, _ := io.ReadAll(res.Body)
+		assert.Equal(t, http.StatusForbidden, res.StatusCode)
+		assert.Equal(t, "text/plain; charset=utf-8", res.Header.Get("Content-Type"))
+		assert.Equal(t, "403 forbidden\n", string(body))
+	})
+}
+
+func TestDefaultError(t *testing.T) {
+	res := c.Fetch(http.MethodPost, "/error", nil)
+	body, _ := io.ReadAll(res.Body)
+	assert.Equal(t, http.StatusInternalServerError, res.StatusCode)
+	assert.Equal(t, "text/plain; charset=utf-8", res.Header.Get("Content-Type"))
+	assert.Equal(t, "some error\n", string(body))
 }
