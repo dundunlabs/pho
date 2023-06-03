@@ -1,7 +1,6 @@
 package tra
 
 import (
-	"fmt"
 	"net/http"
 )
 
@@ -18,7 +17,7 @@ type Router struct {
 
 func (router *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.EscapedPath()
-	node := router.root.findNode(path)
+	node := router.findNode(path)
 
 	if node == nil || node.routes == nil {
 		http.NotFound(w, r)
@@ -32,14 +31,5 @@ func (router *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	v := route.handler(&Context{
-		Context: r.Context(),
-		Request: r,
-		Writer:  w,
-	})
-
-	switch v := v.(type) {
-	case string:
-		fmt.Fprint(w, v)
-	}
+	route.serveHTTP(w, r)
 }

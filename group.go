@@ -1,6 +1,9 @@
 package tra
 
-import "net/http"
+import (
+	"net/http"
+	"strings"
+)
 
 type Group struct {
 	router *Router
@@ -9,7 +12,8 @@ type Group struct {
 
 func (g *Group) Group(path string) *Group {
 	return &Group{
-		path: path,
+		router: g.router,
+		path:   g.path + path,
 	}
 }
 
@@ -17,10 +21,14 @@ func (g *Group) WithGroup(path string, fn func(g *Group)) {
 	fn(g.Group(path))
 }
 
+func (g *Group) findNode(path string) *node {
+	return g.router.root.findNode(strings.TrimPrefix(path, "/"))
+}
+
 func (g *Group) handle(method string, path string, handler Handler) {
 	route := route{
 		method:  method,
-		path:    path,
+		path:    g.path + path,
 		handler: handler,
 	}
 	g.router.root.addRoute(route)

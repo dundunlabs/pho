@@ -6,14 +6,31 @@ import (
 	"strings"
 )
 
+type nodeKey string
+
+const (
+	nodeKeyDynamic nodeKey = "dynamic"
+)
+
 type node struct {
 	children map[any]*node
 	routes   map[string]route
 }
 
+func (n *node) findChild(path string) *node {
+	for _, key := range []any{path, nodeKeyDynamic} {
+		child := n.children[key]
+		if child != nil {
+			return child
+		}
+	}
+
+	return nil
+}
+
 func (n *node) findNode(path string) *node {
 	before, after, found := strings.Cut(path, "/")
-	node := n.children[before]
+	node := n.findChild(before)
 
 	if node == nil {
 		return nil
@@ -33,11 +50,18 @@ func (n *node) addNode(path string) *node {
 		n.children = map[any]*node{}
 	}
 
-	if n.children[before] == nil {
-		n.children[before] = &node{}
+	var key any
+	if strings.HasPrefix(before, ":") {
+		key = nodeKeyDynamic
+	} else {
+		key = before
 	}
 
-	child := n.children[before]
+	if n.children[key] == nil {
+		n.children[key] = &node{}
+	}
+
+	child := n.children[key]
 
 	if found {
 		return child.addNode(after)
@@ -48,7 +72,7 @@ func (n *node) addNode(path string) *node {
 
 func (n *node) addRoute(r route) {
 	path, method := r.path, r.method
-	node := n.addNode(path)
+	node := n.addNode(strings.TrimPrefix(path, "/"))
 
 	if node.routes == nil {
 		node.routes = map[string]route{}
