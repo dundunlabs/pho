@@ -1,6 +1,7 @@
 package tra
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -11,12 +12,29 @@ import (
 
 func setupRouter() *Router {
 	r := NewRouter()
+
 	r.GET("/", func(ctx *Context) any {
 		return "hello tra"
 	})
 	r.POST("/a/b/c", func(ctx *Context) any {
-		return "abc"
+		return ctx.Route()
 	})
+
+	r.WithGroup("/api", func(g *Group) {
+		g.WithGroup("/users", func(g *Group) {
+			g.GET("", func(ctx *Context) any {
+				return []string{"user 1", "user 2"}
+			})
+			g.GET("/:id", func(ctx *Context) any {
+				return fmt.Sprintf("user %s", ctx.Param("id"))
+			})
+		})
+	})
+
+	r.PUT("/:a/:b/:c/:d/:e", func(ctx *Context) any {
+		return ctx.Params
+	})
+
 	return r
 }
 
@@ -39,20 +57,23 @@ func TestRootRoute(t *testing.T) {
 	res := c.Fetch(http.MethodGet, "/", nil)
 	body, _ := io.ReadAll(res.Body)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
-	assert.Equal(t, "hello tra", string(body))
+	assert.Equal(t, "text/plain; charset=utf-8", res.Header.Get("Content-Type"))
+	assert.Equal(t, "hello tra\n", string(body))
 }
 
 func TestSimpleRoute(t *testing.T) {
 	res := c.Fetch(http.MethodPost, "/a/b/c", nil)
 	body, _ := io.ReadAll(res.Body)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
-	assert.Equal(t, "abc", string(body))
+	assert.Equal(t, "text/plain; charset=utf-8", res.Header.Get("Content-Type"))
+	assert.Equal(t, "/a/b/c\n", string(body))
 }
 
 func TestMethodNotAllowedRoute(t *testing.T) {
 	res := c.Fetch(http.MethodGet, "/a/b/c", nil)
 	body, _ := io.ReadAll(res.Body)
 	assert.Equal(t, http.StatusMethodNotAllowed, res.StatusCode)
+	assert.Equal(t, "text/plain; charset=utf-8", res.Header.Get("Content-Type"))
 	assert.Equal(t, "405 method not allowed\n", string(body))
 }
 
@@ -60,5 +81,30 @@ func TestNotFoundRoute(t *testing.T) {
 	res := c.Fetch(http.MethodGet, "/not-found", nil)
 	body, _ := io.ReadAll(res.Body)
 	assert.Equal(t, http.StatusNotFound, res.StatusCode)
+	assert.Equal(t, "text/plain; charset=utf-8", res.Header.Get("Content-Type"))
 	assert.Equal(t, "404 page not found\n", string(body))
+}
+
+func TestGroupedRoute(t *testing.T) {
+	res := c.Fetch(http.MethodGet, "/api/users", nil)
+	body, _ := io.ReadAll(res.Body)
+	assert.Equal(t, http.StatusOK, res.StatusCode)
+	assert.Equal(t, "application/json; charset=utf-8", res.Header.Get("Content-Type"))
+	assert.Equal(t, "[\"user 1\",\"user 2\"]\n", string(body))
+}
+
+func TestDynamicRoute(t *testing.T) {
+	res := c.Fetch(http.MethodGet, "/api/users/1", nil)
+	body, _ := io.ReadAll(res.Body)
+	assert.Equal(t, http.StatusOK, res.StatusCode)
+	assert.Equal(t, "text/plain; charset=utf-8", res.Header.Get("Content-Type"))
+	assert.Equal(t, "user 1\n", string(body))
+}
+
+func TestDynamicRouteWithMultipleParams(t *testing.T) {
+	res := c.Fetch(http.MethodPut, "/1/2/3/4/5", nil)
+	body, _ := io.ReadAll(res.Body)
+	assert.Equal(t, http.StatusOK, res.StatusCode)
+	assert.Equal(t, "application/json; charset=utf-8", res.Header.Get("Content-Type"))
+	assert.Equal(t, "{\"a\":\"1\",\"b\":\"2\",\"c\":\"3\",\"d\":\"4\",\"e\":\"5\"}\n", string(body))
 }
