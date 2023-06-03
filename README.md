@@ -8,4 +8,6 @@
 
 Simple and lightweight HTTP router for [Go](https://go.dev/) with some basic features:
 
-- Routing: static (e.g. `/api/users`), dynamic (e.g. `/users/:id`) and wildcard (e.g. `/public/*`)
+- **Routing**: match any route like "static" (e.g. `/api/users`), "dynamic" (e.g. `/users/:id`) and "wildcard" (e.g. `/public/*`)
+- **Middleware**: execute any code before and after route handler (e.g. authentication, logging, ...)
+- **Error handling**: create, custom, return error without tears
