@@ -37,7 +37,7 @@ func setupRouter() *Router {
 	})
 
 	r.PUT("/:a/:b/:c/:d/:e", func(ctx *Context) any {
-		return ctx.Params
+		return ctx.Params()
 	})
 	r.PATCH("/public/*asset", func(ctx *Context) any {
 		return ctx.Param("asset")
