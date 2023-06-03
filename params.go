@@ -1,13 +1,24 @@
 package tra
 
-import "strconv"
+import (
+	"strings"
+)
 
 type Params map[string]string
 
-func (p Params) Param(key string) string {
-	return p[key]
-}
+func parseParams(pattern string, path string) Params {
+	params := Params{}
+	keys := strings.Split(pattern, "/")
+	values := strings.Split(path, "/")
 
-func (p Params) ParamInt(key string) (int, error) {
-	return strconv.Atoi(p.Param(key))
+	for i, k := range keys {
+		if key, ok := strings.CutPrefix(k, ":"); ok {
+			params[key] = values[i]
+		}
+		if key, ok := strings.CutPrefix(k, "*"); ok {
+			params[key] = strings.Join(values[i:], "/")
+		}
+	}
+
+	return params
 }
