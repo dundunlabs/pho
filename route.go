@@ -14,17 +14,20 @@ type route struct {
 }
 
 func parseParams(pattern string, path string) Params {
-	before, after, found := strings.Cut(pattern, ":")
+	params := Params{}
+	keys := strings.Split(pattern, "/")
+	values := strings.Split(path, "/")
 
-	if found {
-		k, pattern, _ := strings.Cut(after, "/")
-		v, path, _ := strings.Cut(strings.TrimPrefix(path, before), "/")
-		params := parseParams(pattern, path)
-		params[k] = v
-		return params
+	for i, k := range keys {
+		if key, ok := strings.CutPrefix(k, ":"); ok {
+			params[key] = values[i]
+		}
+		if key, ok := strings.CutPrefix(k, "*"); ok {
+			params[key] = strings.Join(values[i:], "/")
+		}
 	}
 
-	return Params{}
+	return params
 }
 
 func (route route) serveHTTP(w http.ResponseWriter, r *http.Request) {

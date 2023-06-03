@@ -9,59 +9,80 @@ import (
 type nodeKey string
 
 const (
-	nodeKeyDynamic nodeKey = "dynamic"
+	nodeKeyDynamic  nodeKey = "dynamic"
+	nodeKeyWildcard nodeKey = "wildcard"
 )
 
 type node struct {
 	children map[any]*node
 	routes   map[string]route
+	dynamic  bool
+	wilcard  bool
 }
 
-func (n *node) findChild(path string) *node {
-	for _, key := range []any{path, nodeKeyDynamic} {
-		child := n.children[key]
-		if child != nil {
-			return child
-		}
+func (n *node) findChild(key any) *node {
+	child := n.children[key]
+	if child != nil {
+		return child
 	}
-
+	if n.wilcard {
+		return n
+	}
 	return nil
 }
 
 func (n *node) findNode(path string) *node {
 	before, after, found := strings.Cut(path, "/")
-	node := n.findChild(before)
+	var node *node
 
-	if node == nil {
-		return nil
+	for _, key := range []any{before, nodeKeyDynamic, nodeKeyWildcard} {
+		child := n.findChild(key)
+
+		if child == nil {
+			continue
+		}
+
+		if found {
+			node = child.findNode(after)
+		} else {
+			node = child
+		}
+		break
 	}
 
-	if found {
-		return node.findNode(after)
-	} else {
-		return node
-	}
+	return node
 }
 
-func (n *node) addNode(path string) *node {
-	before, after, found := strings.Cut(path, "/")
+func (n *node) addChild(path string) *node {
+	dynamic := strings.HasPrefix(path, ":")
+	wilcard := strings.HasPrefix(path, "*")
 
 	if n.children == nil {
 		n.children = map[any]*node{}
 	}
 
 	var key any
-	if strings.HasPrefix(before, ":") {
+	if dynamic {
 		key = nodeKeyDynamic
+	} else if wilcard {
+		key = nodeKeyWildcard
 	} else {
-		key = before
+		key = path
 	}
 
 	if n.children[key] == nil {
-		n.children[key] = &node{}
+		n.children[key] = &node{
+			dynamic: dynamic,
+			wilcard: wilcard,
+		}
 	}
 
-	child := n.children[key]
+	return n.children[key]
+}
+
+func (n *node) addNode(path string) *node {
+	before, after, found := strings.Cut(path, "/")
+	child := n.addChild(before)
 
 	if found {
 		return child.addNode(after)
