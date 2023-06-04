@@ -11,3 +11,17 @@ Simple and lightweight HTTP router for [Go](https://go.dev/) with some basic fea
 - **Routing**: match any route like "static" (e.g. `/api/users`), "dynamic" (e.g. `/users/:id`) and "wildcard" (e.g. `/public/*`)
 - **Middleware**: execute any code before and after route handler (e.g. authentication, logging, ...)
 - **Error handling**: create, custom, return error without tears
+
+## Installation 
+```bash
+go get -u github.com/dundunlabs/tra
+```
+
+## Example
+https://github.com/dundunlabs/tra/tree/main/example
+
+## License
+[MIT](https://github.com/dundunlabs/tra/blob/main/LICENSE)
+
+---
+Enjoy your coding 😊 
